@@ -1,4 +1,4 @@
-// Minimal client-side prototype for Tabletap
+// Swiggy-style client-side prototype for Tabletap
 // No build step needed – uses plain JS and DOM APIs.
 
 const MOCK_FOOD_COURT = {
@@ -12,24 +12,42 @@ const MOCK_FOOD_COURT = {
   ],
 };
 
+// Dummy images to give a Swiggy-style feel
+const IMAGE_PLACEHOLDERS = {
+  burger:
+    "https://via.placeholder.com/96x96.png?text=Burger",
+  fries:
+    "https://via.placeholder.com/96x96.png?text=Fries",
+  paneer:
+    "https://via.placeholder.com/96x96.png?text=Paneer",
+  thali:
+    "https://via.placeholder.com/96x96.png?text=Thali",
+  pizza:
+    "https://via.placeholder.com/96x96.png?text=Pizza",
+  chai:
+    "https://via.placeholder.com/96x96.png?text=Chai",
+  snack:
+    "https://via.placeholder.com/96x96.png?text=Snack",
+};
+
 const MOCK_MENUS = {
   1: [
-    { id: 11, name: "Classic Burger", price: 150 },
-    { id: 12, name: "Cheese Burst Burger", price: 190 },
-    { id: 13, name: "French Fries", price: 90 },
+    { id: 11, name: "Classic Burger", price: 150, image: IMAGE_PLACEHOLDERS.burger },
+    { id: 12, name: "Cheese Burst Burger", price: 190, image: IMAGE_PLACEHOLDERS.burger },
+    { id: 13, name: "French Fries", price: 90, image: IMAGE_PLACEHOLDERS.fries },
   ],
   2: [
-    { id: 21, name: "Paneer Bowl", price: 180 },
-    { id: 22, name: "Veg Thali", price: 220 },
+    { id: 21, name: "Paneer Bowl", price: 180, image: IMAGE_PLACEHOLDERS.paneer },
+    { id: 22, name: "Veg Thali", price: 220, image: IMAGE_PLACEHOLDERS.thali },
   ],
   3: [
-    { id: 31, name: "Margherita Pizza", price: 250 },
-    { id: 32, name: "Farmhouse Pizza", price: 320 },
+    { id: 31, name: "Margherita Pizza", price: 250, image: IMAGE_PLACEHOLDERS.pizza },
+    { id: 32, name: "Farmhouse Pizza", price: 320, image: IMAGE_PLACEHOLDERS.pizza },
   ],
   4: [
-    { id: 41, name: "Masala Chai", price: 30 },
-    { id: 42, name: "Cold Coffee", price: 120 },
-    { id: 43, name: "Samosa", price: 25 },
+    { id: 41, name: "Masala Chai", price: 30, image: IMAGE_PLACEHOLDERS.chai },
+    { id: 42, name: "Cold Coffee", price: 120, image: IMAGE_PLACEHOLDERS.chai },
+    { id: 43, name: "Samosa", price: 25, image: IMAGE_PLACEHOLDERS.snack },
   ],
 };
 
@@ -68,6 +86,12 @@ function getCartTotals() {
     perShop.push({ shop: shopEntry.shop, total });
   });
   return { grand, perShop };
+}
+
+function getCartCount() {
+  return Object.values(state.cart).reduce((acc, shopEntry) => {
+    return acc + Object.values(shopEntry.items).reduce((a, i) => a + i.qty, 0);
+  }, 0);
 }
 
 function addToCart(shopId, item) {
@@ -141,25 +165,21 @@ function submitCheckout(e) {
 }
 
 function renderShopsScreen() {
-  const cartCount = Object.values(state.cart).reduce((acc, shopEntry) => {
-    return (
-      acc + Object.values(shopEntry.items).reduce((a, i) => a + i.qty, 0)
-    );
-  }, 0);
+  const cartCount = getCartCount();
 
   return `
     <div class="card">
       <h1>${MOCK_FOOD_COURT.name}</h1>
       <p class="text-sm text-muted">Scan QR → choose your shop → order from multiple counters in one go.</p>
 
-      <h2 class="mt-3">Shops</h2>
+      <h2 class="mt-3">All shops</h2>
       <ul class="list mt-2">
         ${MOCK_FOOD_COURT.shops
           .map(
             (shop) => `
-              <li class="list-item">
+              <li class="list-item shop-row">
                 <div>
-                  <div>${shop.name}</div>
+                  <div class="shop-name">${shop.name}</div>
                   <div class="row mt-1">
                     <span class="chip">${shop.type}</span>
                     <span class="chip">Prep: ${shop.prepTime}</span>
@@ -194,32 +214,57 @@ function bindShopsScreen() {
 function renderMenuScreen() {
   const shop = MOCK_FOOD_COURT.shops.find((s) => s.id === state.selectedShopId);
   const menu = MOCK_MENUS[shop.id] || [];
+  const cartEntry = state.cart[shop.id] || { items: {} };
+  const cartCount = getCartCount();
+
+  const itemsHtml = menu
+    .map((item) => {
+      const current = cartEntry.items[item.id];
+      const qty = current ? current.qty : 0;
+
+      const controls =
+        qty === 0
+          ? `<button class="button add-pill" data-add-item="${item.id}">+ Add</button>`
+          : `<div class="qty-control" data-item="${item.id}">
+              <button class="qty-btn" data-dec-item="${item.id}">−</button>
+              <span class="qty-count">${qty}</span>
+              <button class="qty-btn" data-inc-item="${item.id}">+</button>
+            </div>`;
+
+      return `
+        <li class="list-item menu-item">
+          <div class="menu-item-body">
+            <div class="menu-item-text">
+              <div class="menu-item-name">${item.name}</div>
+              <div class="menu-item-price">${formatCurrency(item.price)}</div>
+            </div>
+          </div>
+          <div class="menu-item-side">
+            <div class="menu-item-image-wrapper">
+              <img src="${item.image}" alt="${item.name}" class="menu-item-image" />
+              <div class="menu-item-cta">
+                ${controls}
+              </div>
+            </div>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
 
   return `
     <div class="card">
       <button class="button secondary" id="back-to-shops">← All shops</button>
       <h2 class="mt-3">${shop.name}</h2>
       <p class="text-sm text-muted">Tap + to add items. You can switch shops anytime.</p>
-      <ul class="list mt-2">
-        ${menu
-          .map(
-            (item) => `
-              <li class="list-item">
-                <div>
-                  <div>${item.name}</div>
-                  <div class="text-sm text-muted mt-1">${formatCurrency(
-                    item.price,
-                  )}</div>
-                </div>
-                <button class="button" data-add-item="${item.id}">+ Add</button>
-              </li>
-            `,
-          )
-          .join("")}
+      <ul class="list mt-2 menu-list">
+        ${itemsHtml}
       </ul>
       <div class="footer-bar row space-between mt-3">
         <button class="button secondary" id="go-home">Food court</button>
-        <button class="button" id="go-cart">View cart</button>
+        <button class="button" id="go-cart" ${
+          cartCount === 0 ? "disabled" : ""
+        }>View cart · ${cartCount}</button>
       </div>
     </div>
   `;
@@ -228,13 +273,21 @@ function renderMenuScreen() {
 function bindMenuScreen() {
   document.getElementById("back-to-shops").onclick = () => goHome();
   document.getElementById("go-home").onclick = () => goHome();
-  document.getElementById("go-cart").onclick = () => goToCart();
+  const goCart = document.getElementById("go-cart");
+  if (goCart) goCart.onclick = () => goToCart();
 
   const shopId = state.selectedShopId;
   const menu = MOCK_MENUS[shopId] || [];
   menu.forEach((item) => {
-    const btn = document.querySelector(`button[data-add-item="${item.id}"]`);
-    if (btn) btn.onclick = () => addToCart(shopId, item);
+    const addBtn = document.querySelector(
+      `button[data-add-item="${item.id}"]`,
+    );
+    if (addBtn) addBtn.onclick = () => addToCart(shopId, item);
+
+    const decBtn = document.querySelector(`button[data-dec-item="${item.id}"]`);
+    const incBtn = document.querySelector(`button[data-inc-item="${item.id}"]`);
+    if (decBtn) decBtn.onclick = () => updateQty(shopId, item.id, -1);
+    if (incBtn) incBtn.onclick = () => updateQty(shopId, item.id, 1);
   });
 }
 
